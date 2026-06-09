@@ -1,43 +1,23 @@
-# Go2 Controller Android App
+# Go2 Teleoperation Project
 
-This project is part of my internship work on teleoperating the Unitree Go2 robot.
+This repository contains work in progress for my internship project on teleoperating the Unitree Go2 robot.
 
-The long-term goal is to control the robot through physical user motion, potentially using data from a wearable device.
+The final goal of the project is to control the robot through physical user motion. The original idea was to use a Meta Quest 3 headset to read motion data, but the project may instead use a wearable device, such as a smartwatch, to collect movement data from the user.
 
-For the first stage, the focus is on sending simple commands from an Android application to the robot through a communication bridge.
+At the current stage, the focus is on building an Android application that can send simple commands to the robot, such as `Sit`, `Stand`, or `Stop`.
 
-## Current System Architecture
+The planned system structure is:
 
-Android App  
-↓  
-Communication Bridge / Relay  
-↓  
-Robot Control Interface  
-↓  
+```text
+User Motion / App Input
+        ↓
+Android Application
+        ↓
+Communication Bridge
+        ↓
+Robot Control Interface
+        ↓
 Unitree Go2
+```
 
-## Week 1 Goal
-
-The goal for the first week is to build a basic Android app that can send robot commands such as:
-
-- Sit
-- Stop
-- Stand
-- Move
-
-At this stage, button presses in the app send command requests to a relay/server, which will later translate them into robot actions.
-
-## Technologies
-
-- Kotlin
-- Android Studio
-- Jetpack Compose
-- HTTP requests
-- Unitree Go2
-- Future integration with ROS2 or WebRTC
-
-## Project Status
-
-Currently, the Android app interface is being developed and tested.
-
-The next step is connecting the app to a communication bridge and verifying that button commands are successfully sent.
+This project is still in an early development phase, so the repository will be updated as the implementation progresses. More detailed documentation will be added in the `documentation/` folder.
