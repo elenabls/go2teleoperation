@@ -4,13 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +25,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.go2controller.ui.theme.Go2ControllerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,21 +36,10 @@ import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.shadow.ShadowContext
-import java.util.concurrent.ExecutionException
 
-
-private const val SERVER_BASE_URL = "http://192.168.1.119:8000"
+private const val SERVER_BASE_URL = "http://192.168.10.12:8000"
 private const val COMMAND_URL = "$SERVER_BASE_URL/command"
-private const val HEALTH_URL =  "$SERVER_BASE_URL/health"
+private const val HEALTH_URL = "$SERVER_BASE_URL/health"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +62,14 @@ class MainActivity : ComponentActivity() {
 fun Go2ControllerScreen(modifier: Modifier = Modifier) {
     var status by remember { mutableStateOf("Waiting for command") }
     val scope = rememberCoroutineScope()
+
+    val commands = listOf(
+        "Stand up" to "stand",
+        "Lie down" to "lie_down",
+        "Hello" to "hello",
+        "Sit" to "sit",
+        "Heart" to "heart"
+    )
 
     fun sendButtonCommand(command: String) {
         status = "Sending command: $command"
@@ -95,7 +99,7 @@ fun Go2ControllerScreen(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "✦ Unitree Go2 Controller ✦",
-            color= Color.White,
+            color = Color.White,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
@@ -117,62 +121,49 @@ fun Go2ControllerScreen(modifier: Modifier = Modifier) {
                     shape = RoundedCornerShape(16.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        commands.forEach { (label, command) ->
+            CommandButton(
+                label = label,
+                onClick = {
+                    sendButtonCommand(command)
+                }
             )
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        CommandButton("↑", "go") {
-            sendButtonCommand("go")
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CommandButton("←", "left") {
-                sendButtonCommand("left")
-            }
-
-            StopButton {
-                sendButtonCommand("stop")
-            }
-
-            CommandButton("→", "right") {
-                sendButtonCommand("right")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        CommandButton("↓", "back") {
-            sendButtonCommand("back")
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SitButton {
-                sendButtonCommand("sit")
-            }
-
-            StandButton {
-                sendButtonCommand("stand")
-            }
-        }
-        Spacer(modifier = Modifier.height(32.dp) )
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) { TestButton {
+        TestButton {
             testConnection()
         }
-        }
+    }
+}
+
+@Composable
+fun CommandButton(
+    label: String,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .height(56.dp)
+            .width(200.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFFFCAE9),
+            contentColor = Color.Black
+        )
+    ) {
+        Text(
+            text = label,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -185,7 +176,7 @@ fun TestButton(
         modifier = Modifier
             .height(48.dp)
             .width(200.dp),
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+        colors = ButtonDefaults.buttonColors(
             containerColor = Color(0xFF5CE7FF),
             contentColor = Color.Black
         )
@@ -195,76 +186,6 @@ fun TestButton(
             fontSize = 16.sp,
             fontWeight = FontWeight.Normal
         )
-    }
-}
-
-@Composable
-fun CommandButton(
-    label: String,
-    command: String,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(56.dp).width(110.dp),
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFFFFCAE9),
-            contentColor = androidx.compose.ui.graphics.Color.Black
-        )
-    ) {
-        Text(
-            text = label,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-fun StopButton(
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(56.dp),
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = androidx.compose.ui.graphics.Color.Red,
-            contentColor = androidx.compose.ui.graphics.Color.White
-        )
-    ) {
-        Text("Stop")
-    }
-}
-
-@Composable
-fun StandButton(
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(56.dp),
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFFFBF249),
-            contentColor = androidx.compose.ui.graphics.Color.Black
-        )
-    ) {
-        Text("Stand")
-    }
-}
-
-@Composable
-fun SitButton(
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(56.dp),
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFFFBF249),
-            contentColor = androidx.compose.ui.graphics.Color.Black
-        )
-    ) {
-        Text("Sit")
     }
 }
 
@@ -356,4 +277,3 @@ suspend fun testServerConnection(): String {
         }
     }
 }
-

@@ -2,7 +2,7 @@
 
 ## 1. Project Goal
 
-The final goal of the project is to teleoperate the Unitree Go2 robot using physical human motion. Initially, the intended input device was the Meta Quest 3, which would be used to read motion signals from the user. However, another possible approach is to use a wearable device, such as a smartwatch, to collect hand-motion or gesture data.
+The final goal of the project is to teleoperate the Unitree Go2 robot using physical human motion. Initially, the intended input device was the Meta Quest 3, which would be used to read motion signals from the user. Another possible input device is a wearable, such as a smartwatch, which could collect hand-motion or gesture data.
 
 The long-term system would therefore follow this idea:
 
@@ -11,6 +11,8 @@ Human motion / gesture input
         ↓
 Wearable device / Meta Quest 3
         ↓
+Input processing / command mapping
+        ↓
 Communication layer
         ↓
 Robot control interface
@@ -18,55 +20,51 @@ Robot control interface
 Unitree Go2
 ```
 
-For the first sprint, the focus is reduced to a simpler and testable goal: sending basic commands to the robot from an Android application. Instead of using physical gestures immediately, the user presses buttons in the app, such as “Sit” or “Stop,” and the selected command is sent to a relay server.
+For the first sprint, the goal was reduced to a smaller and testable prototype: sending basic robot commands from an Android application. Instead of using physical gestures immediately, the user presses buttons in the app, and the selected command is sent to a relay server.
 
-The purpose of this first prototype is to verify that the Android app can communicate reliably with an intermediate server before connecting the system to the actual robot control layer.
+The purpose of this prototype is to verify the communication chain step by step before connecting the system to the actual robot control layer.
+
+---
 
 ## 2. Week 1 System Architecture
 
-The Week 1 prototype is composed of three main parts:
+The Week 1 prototype is composed of four main parts:
 
 ```text
 Android App
-    ↓
+    ↓ HTTP
 Communication Bridge / Relay Server
-    ↓
-Robot Control Interface
+    ↓ ZeroMQ
+Robot Receiver / Control Interface
     ↓
 Unitree Go2
 ```
 
-### 2.1 Android App
-
-The Android app acts as the user interface. It displays command buttons that the user can press to send instructions such as:
+During local testing, the real robot receiver was replaced by a fake receiver running on the laptop:
 
 ```text
-stand
-sit
-go
-stop
-left
-right
-back
+Android App
+    ↓ HTTP POST /command
+Python Relay Server
+    ↓ ZeroMQ
+Fake Robot Receiver
 ```
 
-Each button is mapped to a command string. When the user presses a button, the app sends the corresponding command to the relay server using an HTTP request.
+This allowed the communication pipeline to be tested safely without sending commands to the physical robot.
 
-### 2.2 Communication Bridge / Relay Server
+---
 
-The relay server acts as the middle layer between the Android app and the robot. For the current prototype, it is implemented as a simple Python HTTP server running locally on port `8000`.
+## 3. Android App
 
-The relay receives JSON messages from the Android app, extracts the command, and prints it in the Python terminal. This confirms that the app is successfully sending commands to the server.
+The Android app acts as the user interface. It was built using Android Studio, Kotlin, and Jetpack Compose. The user interface is written directly in Kotlin code instead of XML layout files.
 
-At this stage, the relay does not yet execute robot actions directly. Its role is to validate the communication pipeline.
+The main application code is located in:
 
-### 2.3 Robot Control Interface
+```text
+app/src/main/java/com/example/go2controller/MainActivity.kt
+```
 
-The next step will be to connect the relay server to the actual Unitree Go2 control interface. This may be done through ROS2, WebRTC, or another Wi-Fi-based communication method, depending on the available robot-side API and project requirements.
-
-## 3. Android App Implementation
-
-The Android application was built using Android Studio and Kotlin. The Android SDK is installed at:
+The Android SDK is installed at:
 
 ```text
 C:\Android\Sdk
@@ -78,98 +76,79 @@ The project directory is:
 C:\elena\AndroidStudioProjects\Go2Controller
 ```
 
-The main application code is located in:
+The app sends HTTP requests to the relay server using the laptop IP address and port `8000`:
 
-```text
-app/src/main/java/com/example/go2controller/MainActivity.kt
+```kotlin
+private const val SERVER_BASE_URL = "http://192.168.1.119:8000"
+private const val COMMAND_URL = "$SERVER_BASE_URL/command"
+private const val HEALTH_URL = "$SERVER_BASE_URL/health"
 ```
 
-The app uses Jetpack Compose, meaning that the user interface is written directly in Kotlin code instead of XML layout files.
+The phone does not communicate directly with the robot. It only communicates with the laptop running the relay server. The relay then forwards the command to the robot-side receiver.
 
-## 4. Initial App Prototype
+---
 
-The first version of the app was a basic interface with simple buttons. Pressing a button only changed the status message displayed on the screen. No communication with an external server was implemented at that stage.
+## 4. Cleaned Android Interface
 
-The initial workflow was:
+The initial app interface included movement-style buttons such as forward, left, right, back, stop, sit, and stand. However, after connecting the app to the available robot command receiver, the interface was cleaned so that it only contains commands currently supported by the relay.
 
-```text
-App opens
-    ↓
-MainActivity runs
-    ↓
-Go2ControllerScreen is displayed
-    ↓
-Status starts as "Waiting for command"
-    ↓
-User presses a button
-    ↓
-Status text updates on the screen
-```
-
-This version was useful for understanding the basic structure of a Compose app:
-
-* `MainActivity` starts the app.
-* `setContent` defines what is displayed on the screen.
-* `Go2ControllerScreen` contains the UI elements.
-* `Column`, `Row`, `Button`, `Text`, and `Spacer` are used to arrange the interface.
-* A `status` variable stores and updates the current app message.
-
-## 5. Updated App Prototype
-
-The app was later improved both visually and functionally.
-
-The current UI is arranged more like a remote controller instead of a vertical list of buttons. Directional commands are placed in an intuitive layout:
+The current supported commands are:
 
 ```text
-        ↑
-
-←     Stop     →
-
-        ↓
-
-Sit        Stand
+stand
+lie_down
+hello
+sit
+heart
 ```
 
-This makes the interface easier to understand, especially for movement-based robot control.
+The displayed button labels are more user-friendly:
 
-The app also includes:
+```text
+Stand up  → stand
+Lie down  → lie_down
+Hello     → hello
+Sit       → sit
+Heart     → heart
+```
 
-* a custom title: `✦ Unitree Go2 Controller ✦`
-* styled command buttons
-* a separate red Stop button
-* separate Sit and Stand buttons
-* a status display box
-* a Test button for checking server connectivity
-* custom colors and larger button text
+This keeps the Android side readable, while the relay is responsible for translating these high-level command names into the command codes expected by the robot receiver.
+
+The current app includes:
+
+- a title: `✦ Unitree Go2 Controller ✦`
+- a status display box
+- five supported command buttons
+- a `Test Connection` button
+- timeout handling for connection errors
 
 The current main color choices are:
 
 ```text
 Background: dark blue #064275
 Status box: green #98D278
-Movement buttons: pink #FFCAE9
-Posture buttons: yellow #FBF249
-Stop button: red
+Command buttons: pink #FFCAE9
+Test button: cyan #5CE7FF
 ```
 
-The updated interface is still simple, but it is clearer, more usable, and easier to debug.
+---
 
-## 6. Communication Layer
+## 5. Android-to-Relay Communication
 
-The communication layer uses HTTP requests between the Android app and the Python relay server.
+The app communicates with the relay using HTTP.
 
-There are currently two endpoints:
+There are two endpoints:
 
 ```text
 POST /command
 GET  /health
 ```
 
-### 6.1 Command Endpoint
+### 5.1 Command Endpoint
 
-The `/command` endpoint is used to send robot commands.
+The `/command` endpoint is used to send commands.
 
-When a user presses a command button, the Android app creates a JSON message such as:
+When the user presses a button, the app creates a JSON message such as:
 
 ```json
 {"command": "sit"}
@@ -178,18 +157,14 @@ When a user presses a command button, the Android app creates a JSON message suc
 The message is sent as an HTTP POST request to:
 
 ```text
-http://192.168.1.119:8000/command
+http://<laptop-ip>:8000/command
 ```
 
-The Python server receives the request, extracts the command, and prints it in the terminal.
-
-Example terminal output:
+For example, during testing the laptop IP was:
 
 ```text
-Received command: sit
+192.168.1.119
 ```
-
-This confirms that the command was successfully sent from the Android app to the relay server.
 
 The command flow is:
 
@@ -202,60 +177,168 @@ App sends POST request to /command
     ↓
 Python relay receives JSON command
     ↓
-Relay prints the command in the terminal
+Relay maps the command to a robot command code
     ↓
-App updates the status message
+Relay forwards the code through ZeroMQ
 ```
 
-### 6.2 Health Check Endpoint
+### 5.2 Health Check Endpoint
 
-A separate `/health` endpoint was added for debugging. This endpoint allows the app to check whether the server is reachable without sending an actual robot command.
+The `/health` endpoint is used for debugging. It checks whether the relay server is reachable without sending a robot command.
 
-The Test button in the app sends a GET request to:
+The Test button sends a GET request to:
 
 ```text
-http://192.168.1.119:8000/health
+http://<laptop-ip>:8000/health
 ```
 
-If the relay server is running and reachable, it responds with a success message. The app then displays a status such as:
+If the relay server is reachable, the app displays:
 
 ```text
 Server connected
 ```
 
-This is useful because it separates connection testing from robot commands.
+This is useful because it separates basic network testing from robot command testing.
 
-The debugging flow is:
+---
 
-```text
-User presses Test
-    ↓
-Android app sends GET request to /health
-    ↓
-Python relay responds
-    ↓
-App displays connection status
-```
+## 6. Relay Server
 
-This helped identify and fix a URL path issue during development, where the app was accidentally sending requests to:
+The relay server is written in Python. It receives HTTP requests from the Android app and forwards commands to the robot-side receiver using ZeroMQ.
+
+The relay has two responsibilities:
 
 ```text
-/command/command
-/command/health
+1. Receive high-level command names from the Android app.
+2. Translate those names into robot command codes and send them through ZeroMQ.
 ```
 
-instead of:
+The relay maps commands as follows:
+
+```python
+COMMAND_MAP = {
+    "stand": "1001",
+    "lie_down": "1002",
+    "hello": "1003",
+    "sit": "1004",
+    "heart": "1005",
+}
+```
+
+The relay receives commands from the phone on port `8000` and forwards them to a ZeroMQ receiver on port `5555`.
+
+For local testing, the receiver IP was set to:
+
+```python
+RECEIVER_IP = "127.0.0.1"
+PORT = 5555
+```
+
+For real robot testing, this IP should be changed to the robot-side receiver IP, for example:
+
+```python
+RECEIVER_IP = "192.168.10.6"
+PORT = 5555
+```
+
+The Android app should still point to the laptop IP. Only the relay server should point to the robot receiver IP.
+
+---
+
+## 7. ZeroMQ Communication
+
+The existing robot command script provided by the supervisor uses ZeroMQ. It sends command codes such as `1001`, `1002`, `1003`, `1004`, and `1005` to a receiver running on another machine.
+
+The original keyboard-based workflow was:
 
 ```text
-/command
-/health
+Keyboard input
+    ↓
+Python ZMQ client
+    ↓
+Receiver at 192.168.10.x:5555
+    ↓
+Robot command execution
 ```
 
-After correcting the base URL, the server responded correctly.
+The updated workflow replaces keyboard input with the Android app:
 
-## 7. Timeout Handling
+```text
+Android app button
+    ↓ HTTP POST
+Python relay
+    ↓ ZMQ command code
+Robot receiver
+    ↓
+Unitree Go2
+```
 
-Timeouts were added to the Android communication functions to make debugging easier and prevent the app from waiting indefinitely.
+The ZeroMQ socket uses a request-reply pattern:
+
+```text
+REQ socket sends one command
+    ↓
+REP socket receives command
+    ↓
+REP socket sends confirmation
+    ↓
+REQ socket receives confirmation
+```
+
+This means the relay sends a command and then waits for a confirmation message before responding to the Android app.
+
+---
+
+## 8. Fake Receiver for Safe Local Testing
+
+To avoid interfering with the real robot, a fake receiver was created and run locally on the laptop. This fake receiver listens on:
+
+```text
+127.0.0.1:5555
+```
+
+The fake receiver acts like the robot-side receiver. It receives command codes and sends back a fake confirmation.
+
+Example output from the fake receiver:
+
+```text
+Fake robot receiver running on 127.0.0.1:5555
+Fake robot received command: 1004
+```
+
+This confirmed that the app, relay, command mapping, and ZeroMQ forwarding all work before using the physical robot.
+
+The local test chain was:
+
+```text
+Android app
+    ↓
+HTTP relay on laptop
+    ↓
+Command mapping: sit → 1004
+    ↓
+ZeroMQ message
+    ↓
+Fake receiver
+    ↓
+Confirmation returned to relay and app
+```
+
+All five supported commands were successfully tested locally:
+
+```text
+stand      → 1001
+lie_down   → 1002
+hello      → 1003
+sit        → 1004
+heart      → 1005
+```
+
+---
+
+## 9. Timeout and Error Handling
+
+Timeouts were added to the Android communication functions to prevent the app from waiting indefinitely.
 
 The app uses:
 
@@ -264,55 +347,143 @@ connection.connectTimeout = 5000
 connection.readTimeout = 5000
 ```
 
-The connection timeout limits how long the app waits while trying to reach the server. The read timeout limits how long the app waits for the server to respond after the connection has been established.
+The connection timeout limits how long the app waits while trying to reach the server. The read timeout limits how long the app waits for the server to respond after a connection has been established.
 
-This means that if the server is not running, the IP address is wrong, or the devices are not on the same network, the app will stop waiting after 5 seconds and display an error message.
+The relay also uses ZeroMQ timeouts so that it does not wait forever if the receiver does not answer. If the receiver is not running or unreachable, the app may display an error such as:
 
-This improves reliability and makes connection problems easier to detect.
+```text
+Server error 500: {"status": "error", "message": "resource temporarily unavailable"}
+```
 
-## 8. Current Prototype Status
+This means the Android app reached the relay, but the relay did not receive a reply from the ZeroMQ receiver.
 
-At the current stage, the Android app can:
+---
 
-* display a styled control interface
-* send command strings to the Python relay server
-* send JSON data using HTTP POST
-* test server connectivity using a separate health check endpoint
-* display success, error, timeout, or connection messages on the screen
-* confirm received commands through the Python terminal
+## 10. Network Setup and IP Address Notes
 
-The current system is therefore:
+A key debugging point was that the phone, laptop, and robot receiver may be on different networks.
+
+During local app testing, the laptop was connected to Wi-Fi with:
+
+```text
+Laptop Wi-Fi IP: 192.168.1.119
+```
+
+The Android app used this IP to reach the relay:
+
+```text
+http://192.168.1.119:8000
+```
+
+However, the robot-side receiver is on a different network, using an address such as:
+
+```text
+192.168.10.x
+```
+
+Therefore, the laptop must be able to reach both the phone network and the robot receiver network.
+
+A useful setup is:
+
+```text
+Phone → Laptop over Wi-Fi
+Laptop → Robot receiver over Ethernet or robot network
+```
+
+In this setup:
+
+```text
+Android app URL = laptop IP on the phone-accessible network
+Relay receiver IP = robot receiver IP on the robot network
+```
+
+So the Android app should not be changed to the robot IP. The phone does not connect to the robot directly.
+
+---
+
+## 11. Current Prototype Status
+
+At the current stage, the prototype can:
+
+- display a cleaned Android command interface
+- test server connectivity using `/health`
+- send command strings using HTTP POST
+- receive commands in a Python relay server
+- map high-level app commands to robot command codes
+- forward command codes through ZeroMQ
+- receive confirmations from a fake receiver
+- safely test the full communication path locally
+
+The confirmed local system is:
 
 ```text
 Android App
     ↓ HTTP POST /command
 Python Relay Server
+    ↓ Command mapping
+ZeroMQ REQ socket
     ↓
-Terminal output confirming received command
+Fake Robot Receiver
+    ↓
+Confirmation returned to app
 ```
 
-and for debugging:
+This confirms that the Android app is no longer just a user interface. It is connected to a working communication bridge.
+
+---
+
+## 12. Real Robot Test Plan
+
+Once the robot is free and the network is correctly configured, the real receiver can be used instead of the fake receiver.
+
+The real test procedure is:
 
 ```text
-Android App
-    ↓ HTTP GET /health
-Python Relay Server
-    ↓
-Connection status returned to app
+1. Stop the fake receiver.
+2. Change the relay receiver IP from 127.0.0.1 to the real receiver IP.
+3. Keep the Android app pointing to the laptop IP.
+4. Start the relay server.
+5. Press Test Connection in the Android app.
+6. Send one safe command first, preferably Hello.
+7. Wait for the robot response before sending another command.
 ```
 
-## 9. Next Steps
+For example:
 
-The next development step is to connect the Python relay server to the actual Unitree Go2 robot control layer. This requires identifying the correct robot communication method, such as ROS2 or WebRTC.
+```python
+RECEIVER_IP = "192.168.10.6"
+PORT = 5555
+```
 
-After the relay can trigger real robot actions, the system can be expanded toward the final goal: replacing button input with gesture input from a wearable device or Meta Quest 3.
+The expected real command chain is:
 
-Possible next steps include:
+```text
+Android app
+    ↓
+Laptop relay
+    ↓
+ZeroMQ command code
+    ↓
+Robot receiver
+    ↓
+Unitree Go2
+```
 
-* mapping each app command to an actual robot action
-* testing communication with the Go2 robot
-* investigating ROS2 or WebRTC control options
-* integrating smartwatch gesture data
-* defining gesture-to-command mappings
-* improving feedback from the robot to the app
-* optionally adding camera or robot state information to the app
+Commands should be tested one at a time, with pauses between them, to avoid unexpected robot behavior.
+
+---
+
+## 13. Next Steps
+
+The next development steps are:
+
+- complete a controlled real-robot test using the current Android-to-ZMQ pipeline
+- confirm which command codes are available for additional actions
+- add movement commands only after their corresponding robot codes are known
+- improve robot-side feedback to the Android app
+- investigate ROS2 as the long-term robot communication architecture
+- compare how smartwatch and Meta Quest input data could be converted into commands
+- define gesture-to-command mappings
+- eventually replace button input with wearable or VR-based motion input
+
+For now, the most important milestone has been achieved: the Android app can send commands through the relay and reach a ZeroMQ receiver safely during local testing.
