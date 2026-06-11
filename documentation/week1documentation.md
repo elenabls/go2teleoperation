@@ -473,17 +473,300 @@ Commands should be tested one at a time, with pauses between them, to avoid unex
 
 ---
 
-## 13. Next Steps
+## 13. Wearable / MoRSE MQTT Investigation
+
+In parallel with the Android-based prototype, the wearable-control direction was investigated. The long-term idea is to use smartwatch gestures as an alternative input method for controlling the Unitree Go2.
+
+After discussing with the researcher responsible for the wearable system, the expected architecture was clarified as follows:
+
+```text
+Smartwatch gesture
+    ↓
+MoRSE application
+    ↓ MQTT
+MQTT broker
+    ↓
+Python gesture-to-command translator
+    ↓
+Go2 command interface
+    ↓
+Unitree Go2
+```
+
+The smartwatch/MoRSE system is expected to send MQTT messages. Therefore, the smartwatch does not need to communicate directly with the robot. Instead, an MQTT broker receives the gesture messages, and a Python program subscribes to these messages and translates them into Go2 commands.
+
+The first wearable prototype will not attempt continuous robot teleoperation yet. Instead, the recognized gestures will be treated as high-level triggers, similar to pressing buttons in the Android app.
+
+The current Go2 action commands are:
+
+```python
+COMMAND_MAP = {
+    "stand": "1001",
+    "lie_down": "1002",
+    "hello": "1003",
+    "sit": "1004",
+    "heart": "1005",
+}
+```
+
+A possible temporary gesture mapping is:
+
+```python
+GESTURE_TO_COMMAND = {
+    "gesture_1": "stand",
+    "gesture_2": "lie_down",
+    "gesture_3": "hello",
+    "gesture_4": "sit",
+    "gesture_5": "heart",
+}
+```
+
+This means the wearable input can initially replace the Android buttons:
+
+```text
+gesture_1 → stand     → 1001
+gesture_2 → lie_down  → 1002
+gesture_3 → hello     → 1003
+gesture_4 → sit       → 1004
+gesture_5 → heart     → 1005
+```
+
+The original MoRSE gestures were designed for first-responder communication rather than robot teleoperation. Therefore, their original meaning does not have to be preserved. For this prototype, each recognized gesture can simply act as an input trigger for one of the available robot actions.
+
+---
+
+## 14. Local MQTT Broker Setup
+
+Since the Jetson Nano was not available yet, the MQTT communication layer was first tested locally.
+
+A Mosquitto MQTT broker was set up using Docker. The broker configuration file was created with:
+
+```conf
+listener 1883
+allow_anonymous true
+```
+
+This allows MQTT clients to connect to the broker on port `1883` without requiring a username or password.
+
+The broker was started using Docker:
+
+```bash
+docker run -it --name mosquitto-test -p 1883:1883 -v ~/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
+```
+
+The broker was tested locally using MQTT publish/subscribe commands.
+
+Subscriber:
+
+```bash
+mosquitto_sub -h localhost -p 1883 -t "#" -v
+```
+
+Publisher:
+
+```bash
+mosquitto_pub -h localhost -p 1883 -t "morse/gesture" -m "gesture_1"
+```
+
+The subscriber successfully received:
+
+```text
+morse/gesture gesture_1
+```
+
+This confirmed that the MQTT broker was working locally.
+
+---
+
+## 15. Python MQTT-to-Go2 Command Translator
+
+A Python script was created to subscribe to MQTT messages and translate received gesture labels into Go2 command IDs.
+
+The script subscribes to all MQTT topics using:
+
+```python
+TOPIC = "#"
+```
+
+This is useful because the real MoRSE topic is not known yet. By listening to all topics, the script can print any message that arrives from the smartwatch/MoRSE system.
+
+The script prints:
+
+```text
+Topic
+Raw payload
+Detected gesture
+Mapped Go2 action
+Command ID
+```
+
+The script was also updated to support both plain-text payloads and JSON-style payloads.
+
+Supported plain-text example:
+
+```text
+gesture_1
+```
+
+Supported JSON examples:
+
+```json
+{"gesture": "gesture_1"}
+```
+
+```json
+{"label": "gesture_1"}
+```
+
+```json
+{"motion": "gesture_1"}
+```
+
+This makes the script more flexible, since the exact payload format used by MoRSE is not yet confirmed.
+
+The current local test flow is:
+
+```text
+Fake gesture message
+    ↓
+Mosquitto MQTT broker
+    ↓
+Python MQTT listener
+    ↓
+Gesture extraction
+    ↓
+Gesture-to-command mapping
+    ↓
+Go2 command ID
+```
+
+Example result:
+
+```text
+Topic: morse/gesture
+Raw payload: gesture_1
+Detected gesture: gesture_1
+Mapped Go2 action: stand
+Command ID: 1001
+Pretending to send command to Go2: 1001
+```
+
+This confirms that the MQTT-to-command translation logic works locally.
+
+---
+
+## 16. Ubuntu Setup and Testing
+
+An Ubuntu system was prepared for the MQTT and robot-control work.
+
+The following tools were installed or checked:
+
+```text
+Docker
+Mosquitto MQTT clients
+Python 3
+paho-mqtt
+colcon
+Git
+VS Code / development tools
+```
+
+Docker was tested successfully using:
+
+```bash
+docker run hello-world
+```
+
+The MQTT broker was then started in Docker and tested using local MQTT messages.
+
+The Python MQTT listener was also tested successfully. Fake gesture messages were published locally, and the Python script correctly received and mapped them to Go2 command IDs.
+
+Tested examples:
+
+```text
+gesture_1              → stand     → 1001
+{"gesture": "gesture_2"} → lie_down  → 1002
+```
+
+Unknown gestures are printed but not mapped to Go2 commands yet. This is intentional, because the real gesture labels from MoRSE still need to be observed.
+
+Example:
+
+```text
+Raw payload: {"gesture": "distress"}
+Detected gesture: distress
+Unknown gesture. No Go2 command mapped yet.
+```
+
+Once the real MoRSE payload is known, the gesture mapping dictionary can be updated.
+
+---
+
+## 17. Current Wearable Testing Limitation
+
+The actual smartwatch/MoRSE connection could not be fully tested yet because the available Ubuntu PC was connected through Ethernet and did not have Wi-Fi access.
+
+The smartwatch needs to reach the MQTT broker over a reachable local network. If the smartwatch is connected over Wi-Fi and the PC is connected over Ethernet, the two devices may not be able to communicate, depending on the lab network configuration.
+
+The current limitation is therefore not the MQTT broker or Python script, but the network path between the smartwatch and the broker.
+
+Current confirmed status:
+
+```text
+Mosquitto broker works locally        ✅
+MQTT publish/subscribe works locally  ✅
+Python listener receives messages     ✅
+Gesture-to-command mapping works      ✅
+Real MoRSE smartwatch connection      not tested yet
+```
+
+The real smartwatch test should be repeated once the MQTT broker is running on a device reachable by the smartwatch, such as:
+
+```text
+Jetson Nano on the same network
+Ubuntu PC with Wi-Fi
+Laptop connected to the same Wi-Fi
+Dedicated router / hotspot setup
+```
+
+---
+
+## 18. Updated Next Steps
 
 The next development steps are:
 
-- complete a controlled real-robot test using the current Android-to-ZMQ pipeline
-- confirm which command codes are available for additional actions
-- add movement commands only after their corresponding robot codes are known
-- improve robot-side feedback to the Android app
-- investigate ROS2 as the long-term robot communication architecture
-- compare how smartwatch and Meta Quest input data could be converted into commands
-- define gesture-to-command mappings
-- eventually replace button input with wearable or VR-based motion input
+* move the MQTT broker setup to the Jetson Nano once it is available
+* connect the MoRSE smartwatch app to the Jetson Nano IP address
+* subscribe to all MQTT topics using `#` and inspect the real topic and payload format
+* update the Python parser based on the real MoRSE message format
+* map real MoRSE gesture labels to existing Go2 commands
+* replace the temporary `send_to_go2()` print function with the actual Go2 command interface
+* test one safe command first, preferably `hello`
+* keep the Android app as an alternative manual control interface
+* eventually compare Android button control, smartwatch gesture control, and possible ROS 2 integration
 
-For now, the most important milestone has been achieved: the Android app can send commands through the relay and reach a ZeroMQ receiver safely during local testing.
+The current practical result is that both input directions are now partially prepared:
+
+```text
+Android button input
+    ↓
+HTTP relay
+    ↓
+ZeroMQ command interface
+    ↓
+Go2 command code
+```
+
+and:
+
+```text
+MQTT gesture input
+    ↓
+Python MQTT listener
+    ↓
+Gesture-to-command mapping
+    ↓
+Go2 command code
+```
+
+The next major integration step is to connect the real MoRSE smartwatch messages to the Python MQTT listener and then forward the resulting command IDs to the Go2 command interface.
