@@ -25,6 +25,8 @@ For the first sprint, the goal was reduced to a smaller and testable prototype: 
 The purpose of this prototype is to verify the communication chain step by step before connecting the system to the actual robot control layer.
 
 ---
+MONDAY
+---
 
 ## 2. Week 1 System Architecture
 
@@ -130,7 +132,8 @@ Status box: green #98D278
 Command buttons: pink #FFCAE9
 Test button: cyan #5CE7FF
 ```
-
+---
+TUESDAY
 ---
 
 ## 5. Android-to-Relay Communication
@@ -244,7 +247,8 @@ PORT = 5555
 The Android app should still point to the laptop IP. Only the relay server should point to the robot receiver IP.
 
 ---
-
+WEDNESDAY
+---
 ## 7. ZeroMQ Communication
 
 The existing robot command script provided by the supervisor uses ZeroMQ. It sends command codes such as `1001`, `1002`, `1003`, `1004`, and `1005` to a receiver running on another machine.
@@ -471,6 +475,8 @@ Unitree Go2
 
 Commands should be tested one at a time, with pauses between them, to avoid unexpected robot behavior.
 
+---
+THURSDAY
 ---
 
 ## 13. Wearable / MoRSE MQTT Investigation
@@ -730,34 +736,126 @@ Dedicated router / hotspot setup
 ```
 
 ---
+FRIDAY
+---
+
+Today I continued working on the smartwatch-to-robot command pipeline. I tried connecting to the smartwatch again, but I still could not read the messages sent by it. To isolate the issue, I tested each part of the pipeline individually. I also tested the same MQTT communication flow using my phone instead of the smartwatch, and that worked correctly. Based on this, the issue seems to be specifically in the smartwatch → MQTT broker part of the pipeline.
+
+At the moment, I still do not know why the smartwatch messages are not reaching the broker correctly. I contacted Chris and asked him to let me know when he is in the office, so he can help me check the smartwatch setup.
+
+Since continuing to debug the smartwatch without access to additional help was becoming inefficient, I decided to use the rest of the day to improve the Android app. The goal was to make the app more useful as a manual testing interface for the currently supported robot commands.
+
+The app was updated with the following improvements:
+
+* Added a command history box to keep track of the commands pressed during testing.
+* Improved the status display.
+* Improved the displayed error messages so that relay/receiver errors are easier to understand.
+* Added an editable Server URL input field, so the relay IP address can be changed directly from the Android device without modifying the code.
+* Rearranged the command buttons to make better use of the available screen space.
+* Added support for a more dashboard-like layout, especially in landscape mode.
+* Added a Camera / Monitor Feed placeholder for future video integration.
+
+The app currently supports the following command mapping:
+
+| Action   | Command Code |
+| -------- | ------------ |
+| stand    | 1001         |
+| lie_down | 1002         |
+| hello    | 1003         |
+| sit      | 1004         |
+| heart    | 1005         |
+
+I also started looking into possible ways of adding a camera display from the robot to the app. Two possible communication paths are being considered for this stage:
+
+1. **ROS2-based integration:**
+   Android app → HTTP relay → ROS2 node → Unitree Go2
+
+2. **WebRTC-based integration:**
+   Android app → HTTP relay → WebRTC interface → Unitree Go2
+
+Since the robot is a Unitree Go2 EDU and is expected to communicate over Wi-Fi, WebRTC is especially relevant. However, ROS2 remains attractive because it is a standard robotics framework and would make the system easier to extend later with topics, nodes, sensor data, and logging.
+
+I also found a video showing a teleoperation architecture using both ROS2 and WebRTC:
+https://youtu.be/Jun333B-k2c?is=M1iyrwFQpXxk1yXy
+
+### ROS2 Route
+
+Architecture:
+
+```text
+Android app → HTTP relay → ROS2 node → Unitree Go2
+```
+
+Advantages:
+
+* Standard robotics framework.
+* Easier to expand using topics and nodes.
+* Local support is available in the lab.
+* Easier to document and integrate into a robotics project.
+
+Disadvantages:
+
+* The available Go2 ROS2 topics still need to be checked once the robot is available.
+* The camera feed may require an additional bridge or custom message handling.
+
+### WebRTC Route
+
+Architecture:
+
+```text
+Android app → HTTP relay → WebRTC Go2 interface → Unitree Go2
+```
+
+Advantages:
+
+* Relevant for Go2 communication over Wi-Fi.
+* Likely useful for live video and low-latency control.
+* May be closer to how the official mobile interface communicates with the robot.
+
+Disadvantages:
+
+* Harder to understand and implement.
+* Less local support is available.
+* Direct WebRTC integration inside the Android app would make the app more complex.
+
+For now, I think the most suitable direction is to focus on a ROS2-based integration. The Android app can already send HTTP commands to the Python relay, so the relay can later be extended to communicate with a ROS2 node. This keeps the Android app independent from the robot-specific communication layer.
+
+WebRTC is still relevant, especially because the Go2 communicates over Wi-Fi and the live video stream may rely on WebRTC. However, instead of implementing WebRTC directly inside the Android app at this stage, the preferred architecture is to keep ROS2/WebRTC communication on the backend side and expose a simpler HTTP-based interface to the Android app.
+
 
 ## 18. Updated Next Steps
 
 The next development steps are:
 
-* move the MQTT broker setup to the Jetson Nano once it is available
-* connect the MoRSE smartwatch app to the Jetson Nano IP address
-* subscribe to all MQTT topics using `#` and inspect the real topic and payload format
-* update the Python parser based on the real MoRSE message format
-* map real MoRSE gesture labels to existing Go2 commands
-* replace the temporary `send_to_go2()` print function with the actual Go2 command interface
-* test one safe command first, preferably `hello`
-* keep the Android app as an alternative manual control interface
-* eventually compare Android button control, smartwatch gesture control, and possible ROS 2 integration
+* continue using the Android app as the manual testing interface for the currently supported Go2 commands;
+* keep the editable Server URL field so the relay address can be changed directly from the Android device;
+* use the command history and status messages to debug whether commands are reaching the relay correctly;
+* continue investigating the smartwatch connection issue, especially the smartwatch → MQTT broker part;
+* once the smartwatch is available again, subscribe to all MQTT topics using `#` and inspect the real topic and payload format;
+* update the Python MQTT parser based on the real MoRSE message format;
+* map the real MoRSE gesture labels to the existing Go2 command set;
+* test one safe command first, preferably `hello`;
+* use ROS2 as the main direction for the next robot integration stage;
+* check the available Go2 ROS2 topics once the robot is available;
+* investigate whether the camera feed is exposed through ROS2 topics, WebRTC, or another Unitree interface;
+* keep WebRTC as a possible supporting layer, especially for Wi-Fi communication and video streaming;
+* avoid implementing WebRTC directly inside the Android app unless it becomes necessary.
 
-The current practical result is that both input directions are now partially prepared:
+The current practical result is that both input directions are now partially prepared.
+
+Android manual control path:
 
 ```text
 Android button input
     ↓
 HTTP relay
     ↓
-ZeroMQ command interface
+ZeroMQ command interface / future ROS2 interface
     ↓
 Go2 command code
 ```
 
-and:
+Smartwatch gesture control path:
 
 ```text
 MQTT gesture input
@@ -769,4 +867,18 @@ Gesture-to-command mapping
 Go2 command code
 ```
 
-The next major integration step is to connect the real MoRSE smartwatch messages to the Python MQTT listener and then forward the resulting command IDs to the Go2 command interface.
+The Android app has also been improved into a more complete testing dashboard. It now includes an editable Server URL field, a command history box, clearer status messages, friendlier error messages, and a Camera / Monitor Feed placeholder for future video integration.
+
+The next major integration step is to connect the relay to the real robot communication layer. For now, the preferred direction is:
+
+```text
+Android app / smartwatch input
+    ↓
+Python relay
+    ↓
+ROS2 node
+    ↓
+Unitree Go2 EDU
+```
+
+WebRTC is still considered relevant because the Go2 EDU is expected to communicate over Wi-Fi and the camera stream may rely on WebRTC. However, the current plan is to keep ROS2/WebRTC communication on the backend side and expose a simpler interface to the Android app.
