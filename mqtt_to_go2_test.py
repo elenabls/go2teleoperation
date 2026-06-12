@@ -1,9 +1,10 @@
 import json
 import paho.mqtt.client as mqtt
 
-BROKER_HOST = "localhost"
+BROKER_HOST = "localhost" #or "localhost" since the broker is running on the same machine as this script
 BROKER_PORT = 1883
-TOPIC = "#"
+TOPIC = "#" #listen to all topics, i think the problem is here. i hope when i change it to a specific topic, it will work
+
 
 GESTURE_TO_COMMAND = {
     "gesture_1": "stand",
@@ -21,9 +22,9 @@ COMMAND_MAP = {
     "heart": "1005",
 }
 
-last_gesture = None
+last_gesture = None #used to avoid sending the same commmand more times
 
-
+#understand the messsages coming from the watch
 def extract_gesture(payload):
     payload = payload.strip()
 
@@ -53,7 +54,7 @@ def send_to_go2(command_id):
     """
     print("Pretending to send command to Go2:", command_id)
 
-
+#check if python successfully connected to mosquitto
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("Connected to MQTT broker.")
@@ -63,7 +64,7 @@ def on_connect(client, userdata, flags, rc):
     else:
         print("Connection failed with code:", rc)
 
-
+#runs everytime an MQTT message arrives
 def on_message(client, userdata, message):
     global last_gesture
 

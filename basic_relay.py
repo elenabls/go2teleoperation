@@ -3,7 +3,7 @@ import json
 import zmq
 
 
-RECEIVER_IP = "192.168.10.2"
+RECEIVER_IP = "192.168.1.128" #change this to the actual IP address of the Go2 receiver: 192.168.10.6
 PORT = 5555
 
 COMMAND_MAP = {
@@ -12,7 +12,7 @@ COMMAND_MAP = {
     "hello": "1003",
     "sit": "1004",
     "heart": "1005",
-}
+} 
 
 
 context = zmq.Context()
